@@ -12,3 +12,6 @@ cut
 latexmk-out
 auto
 out/
+CLAUDE.md
+rebuild.sh
+setup_env.sh
