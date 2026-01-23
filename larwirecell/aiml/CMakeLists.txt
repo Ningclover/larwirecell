@@ -1,5 +1,3 @@
-
-
 cet_make_library(LIBRARY_NAME WireCellAIML
     SOURCE
         Labelling2D.cxx
