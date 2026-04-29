@@ -107,11 +107,13 @@ void AIML::TrackIDPIDMap2h5::cache_simchannels(const std::vector<sim::SimChannel
 {
   m_simchannels = simchs;
   m_trackid_to_pid.clear();
+  m_trackid_to_motherid.clear();
 }
 
 void AIML::TrackIDPIDMap2h5::populate_trackid_pid_map()
 {
   m_trackid_to_pid.clear();
+  m_trackid_to_motherid.clear();
   if (m_simchannels.empty()) { return; }
 
   try {
@@ -124,9 +126,13 @@ void AIML::TrackIDPIDMap2h5::populate_trackid_pid_map()
           if (m_trackid_to_pid.find(track_id) != m_trackid_to_pid.end()) { continue; }
 
           int pid = 0;
+          int mother_id = 0;
           try {
             auto const particle = pi_serv->TrackIdToParticle_P(track_id);
-            if (particle) { pid = particle->PdgCode(); }
+            if (particle) {
+              pid = particle->PdgCode();
+              mother_id = particle->Mother();
+            }
           }
           catch (const cet::exception& ex) {
             log->debug("TrackIDPIDMap2h5: failed to fetch MCParticle for track {}: {}",
@@ -134,6 +140,7 @@ void AIML::TrackIDPIDMap2h5::populate_trackid_pid_map()
                        ex.what());
           }
           m_trackid_to_pid.emplace(track_id, pid);
+          m_trackid_to_motherid.emplace(track_id, mother_id);
         }
       }
     }
@@ -147,6 +154,7 @@ void AIML::TrackIDPIDMap2h5::clear_cache()
 {
   m_simchannels.clear();
   m_trackid_to_pid.clear();
+  m_trackid_to_motherid.clear();
 }
 
 void AIML::TrackIDPIDMap2h5::ensure_file()
@@ -170,8 +178,10 @@ void AIML::TrackIDPIDMap2h5::write_mapping(int frame_ident)
   // Extract and sort track IDs for consistent ordering
   std::vector<int> track_ids;
   std::vector<int> pids;
+  std::vector<int> mother_ids;
   track_ids.reserve(m_trackid_to_pid.size());
   pids.reserve(m_trackid_to_pid.size());
+  mother_ids.reserve(m_trackid_to_pid.size());
 
   for (auto const& entry : m_trackid_to_pid) {
     track_ids.push_back(entry.first);
@@ -180,12 +190,14 @@ void AIML::TrackIDPIDMap2h5::write_mapping(int frame_ident)
 
   for (int track_id : track_ids) {
     pids.push_back(m_trackid_to_pid.at(track_id));
+    mother_ids.push_back(m_trackid_to_motherid.at(track_id));
   }
 
   const hsize_t dims[1] = {track_ids.size()};
   const std::string group_name = "/" + std::to_string(frame_ident);
   const std::string trackid_dset_name = group_name + "/track_ids";
   const std::string pid_dset_name = group_name + "/pids";
+  const std::string motherid_dset_name = group_name + "/mother_ids";
 
   // Create group if it doesn't exist
   hid_t lcpl = H5Pcreate(H5P_LINK_CREATE);
@@ -226,8 +238,21 @@ void AIML::TrackIDPIDMap2h5::write_mapping(int frame_ident)
     log->warn("TrackIDPIDMap2h5 failed to create pids dataset {}", pid_dset_name);
   }
 
+  // Create and write mother IDs dataset
+  hid_t motherid_dset = H5Dcreate2(
+    m_file, motherid_dset_name.c_str(), H5T_NATIVE_INT, dataspace, lcpl, H5P_DEFAULT, H5P_DEFAULT);
+
+  if (motherid_dset >= 0) {
+    herr_t status = H5Dwrite(motherid_dset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, mother_ids.data());
+    if (status < 0) { log->warn("TrackIDPIDMap2h5 failed to write mother_ids dataset"); }
+    H5Dclose(motherid_dset);
+  }
+  else {
+    log->warn("TrackIDPIDMap2h5 failed to create mother_ids dataset {}", motherid_dset_name);
+  }
+
   H5Sclose(dataspace);
   H5Pclose(lcpl);
 
-  log->debug("TrackIDPIDMap2h5 wrote {} track ID to PID mappings to frame {}", track_ids.size(), frame_ident);
+  log->debug("TrackIDPIDMap2h5 wrote {} track ID to PID/mother ID mappings to frame {}", track_ids.size(), frame_ident);
 }

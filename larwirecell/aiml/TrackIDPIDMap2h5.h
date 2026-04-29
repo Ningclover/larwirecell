@@ -43,6 +43,7 @@ namespace WireCell::AIML {
 
     std::vector<sim::SimChannel> m_simchannels;
     std::unordered_map<int, int> m_trackid_to_pid;
+    std::unordered_map<int, int> m_trackid_to_motherid;
 
     hid_t m_file;
   };
