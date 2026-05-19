@@ -7,7 +7,9 @@
 #include "lardataobj/Simulation/SimChannel.h"
 #include "larwirecell/Interfaces/IArtEventVisitor.h"
 
+#include <array>
 #include <hdf5.h>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,13 +39,32 @@ namespace WireCell::AIML {
     void clear_cache();
     void ensure_file();
     void write_mapping(int frame_ident);
+    void write_mapping_simchnl(int frame_ident);
 
     std::string m_simchannel_label;
+    std::string m_particle_label;
     std::string m_output_file;
 
     std::vector<sim::SimChannel> m_simchannels;
-    std::unordered_map<int, int> m_trackid_to_pid;
-    std::unordered_map<int, int> m_trackid_to_motherid;
+
+    // --- MCParticle-based maps (all stored G4 tracks, regardless of TPC ionization) ---
+    std::unordered_map<int, int>   m_trackid_to_pid;        // PDG code
+    std::unordered_map<int, int>   m_trackid_to_motherid;   // parent track ID
+    std::unordered_map<int, int>   m_trackid_to_process;    // G4 process code
+    std::unordered_map<int, int>   m_trackid_to_motherpid;  // parent's PDG code
+    // Start/end positions [x, y, z, t] in cm from MCParticle trajectory
+    std::unordered_map<int, std::array<float,4>> m_trackid_to_start;
+    std::unordered_map<int, std::array<float,4>> m_trackid_to_end;
+
+    // --- SimChannel-based maps (only tracks that ionized in TPC, via ParticleInventoryService) ---
+    std::unordered_map<int, int>   m_simchnl_trackid_to_pid;       // PDG code from pi_serv
+    std::unordered_map<int, int>   m_simchnl_trackid_to_motherid;  // parent track ID from pi_serv
+    std::unordered_map<int, int>   m_simchnl_trackid_to_process;   // G4 process code from pi_serv
+    std::unordered_map<int, int>   m_simchnl_trackid_to_motherpid; // parent's PDG code from pi_serv
+    std::unordered_map<int, float> m_simchnl_trackid_to_energy;    // summed deposited energy [MeV]
+
+    // G4 process name → integer code (following CellTree convention)
+    static const std::map<std::string, int> s_process_map;
 
     hid_t m_file;
   };

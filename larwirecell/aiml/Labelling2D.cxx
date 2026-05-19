@@ -44,6 +44,8 @@ AIML::Labelling2D::Labelling2D()
   , m_output_trace_tag_trackid_2nd("trackid_2nd")
   , m_output_trace_tag_pid_1st("pid_1st")
   , m_output_trace_tag_pid_2nd("pid_2nd")
+  , m_output_trace_tag_energyfrac_1st("energyfrac_1st")
+  , m_output_trace_tag_energyfrac_2nd("energyfrac_2nd")
   , m_output_trace_tag_rebinned_reco("rebinned_reco")
   , m_default_label(0)
   , m_tdc_offset(0)
@@ -67,6 +69,8 @@ Configuration AIML::Labelling2D::default_configuration() const
   cfg["output_trace_tag_trackid_2nd"] = m_output_trace_tag_trackid_2nd;
   cfg["output_trace_tag_pid_1st"] = m_output_trace_tag_pid_1st;
   cfg["output_trace_tag_pid_2nd"] = m_output_trace_tag_pid_2nd;
+  cfg["output_trace_tag_energyfrac_1st"] = m_output_trace_tag_energyfrac_1st;
+  cfg["output_trace_tag_energyfrac_2nd"] = m_output_trace_tag_energyfrac_2nd;
   cfg["output_trace_tag_rebinned_reco"] = m_output_trace_tag_rebinned_reco;
   cfg["default_label"] = m_default_label;
   cfg["tdc_offset"] = m_tdc_offset;
@@ -95,6 +99,10 @@ void AIML::Labelling2D::configure(const Configuration& cfg)
     get(cfg, "output_trace_tag_trackid_2nd", m_output_trace_tag_trackid_2nd);
   m_output_trace_tag_pid_1st = get(cfg, "output_trace_tag_pid_1st", m_output_trace_tag_pid_1st);
   m_output_trace_tag_pid_2nd = get(cfg, "output_trace_tag_pid_2nd", m_output_trace_tag_pid_2nd);
+  m_output_trace_tag_energyfrac_1st =
+    get(cfg, "output_trace_tag_energyfrac_1st", m_output_trace_tag_energyfrac_1st);
+  m_output_trace_tag_energyfrac_2nd =
+    get(cfg, "output_trace_tag_energyfrac_2nd", m_output_trace_tag_energyfrac_2nd);
   m_output_trace_tag_rebinned_reco =
     get(cfg, "output_trace_tag_rebinned_reco", m_output_trace_tag_rebinned_reco);
   const int configured_default = get(cfg, "default_label", m_default_label);
@@ -175,6 +183,8 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
   IFrame::trace_list_t trackid_2nd_indices;
   IFrame::trace_list_t pid_1st_indices;
   IFrame::trace_list_t pid_2nd_indices;
+  IFrame::trace_list_t energyfrac_1st_indices;
+  IFrame::trace_list_t energyfrac_2nd_indices;
 
   trackid_indices.reserve(reco_traces.size());
   pid_indices.reserve(reco_traces.size());
@@ -182,6 +192,8 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
   trackid_2nd_indices.reserve(reco_traces.size());
   pid_1st_indices.reserve(reco_traces.size());
   pid_2nd_indices.reserve(reco_traces.size());
+  energyfrac_1st_indices.reserve(reco_traces.size());
+  energyfrac_2nd_indices.reserve(reco_traces.size());
 
   for (auto const& trace : reco_traces) {
     if (!trace) { continue; }
@@ -209,22 +221,26 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
 
     // Rebinned traces
     std::size_t rebinned_size = (reco_charge.size() + m_rebin_time_tick - 1) / m_rebin_time_tick;
-    SimpleTrace* trackid_1st_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
-    SimpleTrace* trackid_2nd_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
-    SimpleTrace* pid_1st_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
-    SimpleTrace* pid_2nd_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* trackid_1st_trace   = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* trackid_2nd_trace   = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* pid_1st_trace       = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* pid_2nd_trace       = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* energyfrac_1st_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
+    SimpleTrace* energyfrac_2nd_trace = new SimpleTrace(chid, trace->tbin(), rebinned_size);
 
-    auto& trackid_1st_values = trackid_1st_trace->charge();
-    auto& trackid_2nd_values = trackid_2nd_trace->charge();
-    auto& pid_1st_values = pid_1st_trace->charge();
-    auto& pid_2nd_values = pid_2nd_trace->charge();
+    auto& trackid_1st_values    = trackid_1st_trace->charge();
+    auto& trackid_2nd_values    = trackid_2nd_trace->charge();
+    auto& pid_1st_values        = pid_1st_trace->charge();
+    auto& pid_2nd_values        = pid_2nd_trace->charge();
+    auto& energyfrac_1st_values = energyfrac_1st_trace->charge();
+    auto& energyfrac_2nd_values = energyfrac_2nd_trace->charge();
 
-    std::fill(
-      trackid_1st_values.begin(), trackid_1st_values.end(), static_cast<float>(m_default_label));
-    std::fill(
-      trackid_2nd_values.begin(), trackid_2nd_values.end(), static_cast<float>(m_default_label));
-    std::fill(pid_1st_values.begin(), pid_1st_values.end(), 0.0f);
-    std::fill(pid_2nd_values.begin(), pid_2nd_values.end(), 0.0f);
+    std::fill(trackid_1st_values.begin(),    trackid_1st_values.end(),    static_cast<float>(m_default_label));
+    std::fill(trackid_2nd_values.begin(),    trackid_2nd_values.end(),    static_cast<float>(m_default_label));
+    std::fill(pid_1st_values.begin(),        pid_1st_values.end(),        0.0f);
+    std::fill(pid_2nd_values.begin(),        pid_2nd_values.end(),        0.0f);
+    std::fill(energyfrac_1st_values.begin(), energyfrac_1st_values.end(), 0.0f);
+    std::fill(energyfrac_2nd_values.begin(), energyfrac_2nd_values.end(), 0.0f);
 
     if (sc) {
       const int base_tbin = trace->tbin();
@@ -267,10 +283,14 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
         int pid_1st = top2_pids.first;
         int pid_2nd = top2_pids.second;
 
-        trackid_1st_values[ibin] = static_cast<float>(track_id_1st);
-        trackid_2nd_values[ibin] = static_cast<float>(track_id_2nd);
-        pid_1st_values[ibin] = static_cast<float>(pid_1st);
-        pid_2nd_values[ibin] = static_cast<float>(pid_2nd);
+        auto top2_efracs = select_top2_energyfracs(*sc, tdc_begin, tdc_end);
+
+        trackid_1st_values[ibin]    = static_cast<float>(track_id_1st);
+        trackid_2nd_values[ibin]    = static_cast<float>(track_id_2nd);
+        pid_1st_values[ibin]        = static_cast<float>(pid_1st);
+        pid_2nd_values[ibin]        = static_cast<float>(pid_2nd);
+        energyfrac_1st_values[ibin] = top2_efracs.first;
+        energyfrac_2nd_values[ibin] = top2_efracs.second;
       }
     }
 
@@ -289,6 +309,10 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
     traces_buffer->push_back(ITrace::pointer(pid_1st_trace));
     pid_2nd_indices.push_back(static_cast<IFrame::trace_list_t::value_type>(traces_buffer->size()));
     traces_buffer->push_back(ITrace::pointer(pid_2nd_trace));
+    energyfrac_1st_indices.push_back(static_cast<IFrame::trace_list_t::value_type>(traces_buffer->size()));
+    traces_buffer->push_back(ITrace::pointer(energyfrac_1st_trace));
+    energyfrac_2nd_indices.push_back(static_cast<IFrame::trace_list_t::value_type>(traces_buffer->size()));
+    traces_buffer->push_back(ITrace::pointer(energyfrac_2nd_trace));
   }
 
   // Create rebinned reco traces
@@ -342,6 +366,12 @@ bool AIML::Labelling2D::operator()(const input_pointer& in, output_pointer& out)
   }
   if (!m_output_trace_tag_pid_2nd.empty()) {
     sframe->tag_traces(m_output_trace_tag_pid_2nd, pid_2nd_indices);
+  }
+  if (!m_output_trace_tag_energyfrac_1st.empty()) {
+    sframe->tag_traces(m_output_trace_tag_energyfrac_1st, energyfrac_1st_indices);
+  }
+  if (!m_output_trace_tag_energyfrac_2nd.empty()) {
+    sframe->tag_traces(m_output_trace_tag_energyfrac_2nd, energyfrac_2nd_indices);
   }
 
   // Tag the rebinned reco traces
@@ -513,6 +543,42 @@ int AIML::Labelling2D::pid_from_track(int track_id) const
   auto it = m_trackid_to_pid.find(track_id);
   if (it == m_trackid_to_pid.end()) { return 0; }
   return it->second;
+}
+
+std::pair<float, float> AIML::Labelling2D::select_top2_energyfracs(const sim::SimChannel& sc,
+                                                                    int tdc_begin,
+                                                                    int tdc_end) const
+{
+  // Use extract_track_charges() for rank ordering — identical filtering
+  // (charge > 0) and sort criterion (numElectrons descending) as
+  // select_top2_track_ids, so the 1st/2nd here always matches those track IDs.
+  auto track_charges = extract_track_charges(sc, tdc_begin, tdc_end);
+  if (track_charges.empty()) { return {0.0f, 0.0f}; }
+
+  // Build trackID -> energyFrac map from TrackIDEs (energyFrac = energy/totalE
+  // summed over the full [tdc_begin, tdc_end) window by SimChannel).
+  if (tdc_end <= tdc_begin) { tdc_end = tdc_begin + 1; }
+  const double start = static_cast<double>(tdc_begin);
+  const double stop  = static_cast<double>(tdc_end);
+  auto matches = sc.TrackIDEs(start, stop);
+
+  std::unordered_map<int, float> tid_to_efrac;
+  tid_to_efrac.reserve(matches.size());
+  for (auto const& m : matches) {
+    tid_to_efrac[m.trackID] = m.energyFrac;
+  }
+
+  float efrac_1st = 0.0f;
+  float efrac_2nd = 0.0f;
+  if (track_charges.size() > 0) {
+    auto it = tid_to_efrac.find(track_charges[0].first);
+    if (it != tid_to_efrac.end()) { efrac_1st = it->second; }
+  }
+  if (track_charges.size() > 1) {
+    auto it = tid_to_efrac.find(track_charges[1].first);
+    if (it != tid_to_efrac.end()) { efrac_2nd = it->second; }
+  }
+  return {efrac_1st, efrac_2nd};
 }
 
 void AIML::Labelling2D::clear_cache()

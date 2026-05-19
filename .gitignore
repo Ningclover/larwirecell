@@ -9,6 +9,7 @@ cut
 *.root
 *.tex
 .vscode
+PLAN*.md
 latexmk-out
 auto
 out/
