@@ -25,21 +25,30 @@ using namespace WireCell;
 
 // G4 process name → integer code mapping (following CellTree convention)
 const std::map<std::string, int> AIML::TrackIDPIDMap2h5::s_process_map = {
-  {"primary",         0},
-  {"Decay",           1},
-  {"eIoni",           2},
-  {"muIoni",          3},
-  {"eBrem",           4},
-  {"compt",           5},
-  {"phot",            6},
-  {"conv",            7},
-  {"hIoni",           8},
-  {"nCapture",        9},
-  {"muPairProd",     10},
-  {"CoulombScat",    11},
-  {"muBrems",        12},
-  {"LowEnConversion",13},
-  {"annihil",        14},
+  {"primary",                  0},
+  {"Decay",                    1},
+  {"eIoni",                    2},
+  {"muIoni",                   3},
+  {"eBrem",                    4},
+  {"compt",                    5},
+  {"phot",                     6},
+  {"conv",                     7},
+  {"hIoni",                    8},
+  {"nCapture",                 9},
+  {"muPairProd",              10},
+  {"CoulombScat",             11},
+  {"muBrems",                 12},
+  {"LowEnConversion",         13},
+  {"annihil",                 14},
+  {"neutronInelastic",        15},
+  {"hadElastic",              16},
+  {"hBertiniCaptureAtRest",   17},
+  {"muMinusCaptureAtRest",    18},
+  {"protonInelastic",         19},
+  {"pi+Inelastic",            20},
+  {"pi-Inelastic",            21},
+  {"PhotonInelastic",         22},
+  {"CHIPSNuclearCaptureAtRest", 23},
 };
 
 AIML::TrackIDPIDMap2h5::TrackIDPIDMap2h5()
@@ -98,6 +107,11 @@ void AIML::TrackIDPIDMap2h5::visit(art::Event& event)
         m_trackid_to_motherid[tid] = particle.Mother();
         // Map G4 process name to integer code; -1 for unknown
         auto it = s_process_map.find(particle.Process());
+        if (it == s_process_map.end()) {
+            std::cout << "Process not in map: tid=" << tid
+                      << " pdg=" << particle.PdgCode()
+                      << " process=\"" << particle.Process() << "\"\n";
+        }
         m_trackid_to_process[tid] = (it != s_process_map.end()) ? it->second : -1;
         // Start/end positions from first and last trajectory points
         {
