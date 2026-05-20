@@ -549,34 +549,22 @@ std::pair<float, float> AIML::Labelling2D::select_top2_energyfracs(const sim::Si
                                                                     int tdc_begin,
                                                                     int tdc_end) const
 {
-  // Use extract_track_charges() for rank ordering — identical filtering
-  // (charge > 0) and sort criterion (numElectrons descending) as
-  // select_top2_track_ids, so the 1st/2nd here always matches those track IDs.
+  // Rank tracks by numElectrons (same ordering as select_top2_track_ids),
+  // then compute charge fraction as track_numElectrons / total_numElectrons.
   auto track_charges = extract_track_charges(sc, tdc_begin, tdc_end);
   if (track_charges.empty()) { return {0.0f, 0.0f}; }
 
-  // Build trackID -> energyFrac map from TrackIDEs (energyFrac = energy/totalE
-  // summed over the full [tdc_begin, tdc_end) window by SimChannel).
-  if (tdc_end <= tdc_begin) { tdc_end = tdc_begin + 1; }
-  const double start = static_cast<double>(tdc_begin);
-  const double stop  = static_cast<double>(tdc_end);
-  auto matches = sc.TrackIDEs(start, stop);
-
-  std::unordered_map<int, float> tid_to_efrac;
-  tid_to_efrac.reserve(matches.size());
-  for (auto const& m : matches) {
-    tid_to_efrac[m.trackID] = m.energyFrac;
+  double total_charge = 0.0;
+  for (auto const& tc : track_charges) {
+    total_charge += tc.second;
   }
 
-  float efrac_1st = 0.0f;
+  if (total_charge <= 0.0) { return {0.0f, 0.0f}; }
+
+  float efrac_1st = static_cast<float>(track_charges[0].second / total_charge);
   float efrac_2nd = 0.0f;
-  if (track_charges.size() > 0) {
-    auto it = tid_to_efrac.find(track_charges[0].first);
-    if (it != tid_to_efrac.end()) { efrac_1st = it->second; }
-  }
   if (track_charges.size() > 1) {
-    auto it = tid_to_efrac.find(track_charges[1].first);
-    if (it != tid_to_efrac.end()) { efrac_2nd = it->second; }
+    efrac_2nd = static_cast<float>(track_charges[1].second / total_charge);
   }
   return {efrac_1st, efrac_2nd};
 }
