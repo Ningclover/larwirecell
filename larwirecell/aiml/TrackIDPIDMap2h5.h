@@ -40,10 +40,18 @@ namespace WireCell::AIML {
     void ensure_file();
     void write_mapping(int frame_ident);
     void write_mapping_simchnl(int frame_ident);
+    void write_mc_json(int frame_ident);
+
+    // JSON helpers (CellTree-compatible)
+    bool keep_mc(int tid) const;
+    static std::string pdg_name(int pdg);
+    bool dump_mc_json_node(int tid, std::ostream& out) const;
+    void dump_mc_json(std::ostream& out) const;
 
     std::string m_simchannel_label;
     std::string m_particle_label;
     std::string m_output_file;
+    bool m_save_mc_json{false};
 
     std::vector<sim::SimChannel> m_simchannels;
 
@@ -55,6 +63,13 @@ namespace WireCell::AIML {
     // Start/end positions [x, y, z, t] in cm from MCParticle trajectory
     std::unordered_map<int, std::array<float,4>> m_trackid_to_start;
     std::unordered_map<int, std::array<float,4>> m_trackid_to_end;
+    // Start/end momentum [px, py, pz, E] in GeV from MCParticle
+    std::unordered_map<int, std::array<float,4>> m_trackid_to_startmom;
+    std::unordered_map<int, std::array<float,4>> m_trackid_to_endmom;
+    // Daughter track IDs
+    std::unordered_map<int, std::vector<int>> m_trackid_to_daughters;
+    // Trajectory points [x, y, z] for each track
+    std::unordered_map<int, std::vector<std::array<float,3>>> m_trackid_to_traj;
 
     // --- SimChannel-based maps (only tracks that ionized in TPC, via ParticleInventoryService) ---
     std::unordered_map<int, int>   m_simchnl_trackid_to_pid;       // PDG code from pi_serv
