@@ -54,6 +54,16 @@ const std::map<std::string, int> AIML::TrackIDPIDMap2h5::s_process_map = {
   {"pi-Inelastic",            21},
   {"PhotonInelastic",         22},
   {"CHIPSNuclearCaptureAtRest", 23},
+  {"Transportation",           24},
+  {"kaon+Inelastic",           25},
+  {"kaon-Inelastic",           26},
+  {"kaon0LInelastic",          27},
+  {"ionInelastic",             28},
+  {"Scintillation",            29},
+  {"ionIoni",                  30},
+  {"nKiller",                  31},
+  {"StepLimiter",              32},
+  {"dInelastic",               33},
 };
 
 AIML::TrackIDPIDMap2h5::TrackIDPIDMap2h5()
@@ -79,6 +89,7 @@ Configuration AIML::TrackIDPIDMap2h5::default_configuration() const
   cfg["particle_label"] = m_particle_label;
   cfg["output_file"] = m_output_file;
   cfg["save_mc_json"] = m_save_mc_json;
+  cfg["save_extended_mcpart"] = m_save_extended_mcpart;
   return cfg;
 }
 
@@ -88,6 +99,7 @@ void AIML::TrackIDPIDMap2h5::configure(const Configuration& cfg)
   m_particle_label = get(cfg, "particle_label", m_particle_label);
   m_output_file = get(cfg, "output_file", m_output_file);
   m_save_mc_json = get(cfg, "save_mc_json", m_save_mc_json);
+  m_save_extended_mcpart = get(cfg, "save_extended_mcpart", m_save_extended_mcpart);
 
   clear_cache();
   if (m_file >= 0) {
@@ -137,6 +149,20 @@ void AIML::TrackIDPIDMap2h5::visit(art::Event& event)
             daughters.push_back(particle.Daughter(d));
           }
           m_trackid_to_daughters[tid] = std::move(daughters);
+          // Extended fields (gated by config flag)
+          if (m_save_extended_mcpart) {
+            auto eit = s_process_map.find(particle.EndProcess());
+            if (eit == s_process_map.end() && !particle.EndProcess().empty()) {
+              std::cout << "EndProcess not in map: tid=" << tid
+                        << " pdg=" << particle.PdgCode()
+                        << " endprocess=\"" << particle.EndProcess() << "\"\n";
+            }
+            m_trackid_to_endprocess[tid] = (eit != s_process_map.end()) ? eit->second : -1;
+            m_trackid_to_status[tid]     = particle.StatusCode();
+            m_trackid_to_mass[tid]       = (float)particle.Mass();
+            m_trackid_to_ndaughters[tid] = particle.NumberDaughters();
+            m_trackid_to_ntrajpts[tid]   = (int)npts;
+          }
           // Trajectory points (for JSON visualization)
           if (m_save_mc_json) {
             std::vector<std::array<float,3>> traj;
@@ -285,6 +311,12 @@ void AIML::TrackIDPIDMap2h5::clear_cache()
   m_trackid_to_endmom.clear();
   m_trackid_to_daughters.clear();
   m_trackid_to_traj.clear();
+  // Extended MCParticle maps
+  m_trackid_to_endprocess.clear();
+  m_trackid_to_status.clear();
+  m_trackid_to_mass.clear();
+  m_trackid_to_ndaughters.clear();
+  m_trackid_to_ntrajpts.clear();
   // SimChannel-based maps
   m_simchnl_trackid_to_pid.clear();
   m_simchnl_trackid_to_motherid.clear();
@@ -398,6 +430,29 @@ void AIML::TrackIDPIDMap2h5::write_mapping(int frame_ident)
   // Write [N,4] start/end momentum [px, py, pz, E] in GeV
   h5_write_float_2d(m_file, lcpl, grp + "/start_moms",  start_moms, log);
   h5_write_float_2d(m_file, lcpl, grp + "/end_moms",    end_moms,   log);
+
+  // Extended MCParticle fields (gated by save_extended_mcpart config)
+  if (m_save_extended_mcpart) {
+    std::vector<int>   end_processes(n), statuses(n), ndaughters(n), ntrajpts(n);
+    std::vector<float> masses(n);
+    for (size_t i = 0; i < n; ++i) {
+      int tid = track_ids[i];
+      end_processes[i] = m_trackid_to_endprocess.count(tid) ? m_trackid_to_endprocess.at(tid) : -1;
+      statuses[i]      = m_trackid_to_status.count(tid)     ? m_trackid_to_status.at(tid)     : 0;
+      masses[i]        = m_trackid_to_mass.count(tid)        ? m_trackid_to_mass.at(tid)       : 0.f;
+      ndaughters[i]    = m_trackid_to_ndaughters.count(tid)  ? m_trackid_to_ndaughters.at(tid) : 0;
+      ntrajpts[i]      = m_trackid_to_ntrajpts.count(tid)    ? m_trackid_to_ntrajpts.at(tid)   : 0;
+    }
+    hid_t ds_ext = H5Screate_simple(1, dims, nullptr);
+    if (ds_ext >= 0) {
+      h5_write_int  (m_file, ds_ext, lcpl, grp + "/end_processes", end_processes, log);
+      h5_write_int  (m_file, ds_ext, lcpl, grp + "/statuses",      statuses,      log);
+      h5_write_float(m_file, ds_ext, lcpl, grp + "/masses",        masses,        log);
+      h5_write_int  (m_file, ds_ext, lcpl, grp + "/ndaughters",    ndaughters,    log);
+      h5_write_int  (m_file, ds_ext, lcpl, grp + "/ntrajpts",      ntrajpts,      log);
+      H5Sclose(ds_ext);
+    }
+  }
 
   H5Pclose(lcpl);
   log->debug("TrackIDPIDMap2h5 wrote {} MCParticle entries to {}", n, grp);
